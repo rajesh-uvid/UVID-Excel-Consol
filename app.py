@@ -115,16 +115,16 @@ st.markdown("""
         background: linear-gradient(90deg, #a78bfa 0%, #f472b6 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        font-size: 2.8rem !important;
+        font-size: 2.0rem !important;
         font-weight: 800 !important;
-        margin-bottom: 0.2rem;
+        margin-bottom: 0.1rem;
         animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
     
     .subtitle {
         color: #94a3b8;
-        font-size: 1.15rem;
-        margin-bottom: 1.8rem;
+        font-size: 0.95rem;
+        margin-bottom: 1.0rem;
         animation: slideUp 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
     
@@ -171,10 +171,10 @@ st.markdown("""
 
     /* Floating illustration/icon */
     .floating-logo {
-        font-size: 3.5rem;
+        font-size: 2.2rem;
         text-align: center;
         animation: float 4s ease-in-out infinite;
-        margin-bottom: 0.8rem;
+        margin-bottom: 0.3rem;
     }
     
     /* Badge styling */
@@ -192,59 +192,19 @@ st.markdown("""
 
 # App Title Section
 st.markdown("""
-<div style="text-align: center; margin-top: 1rem;">
+<div style="text-align: center; margin-top: 0.2rem;">
     <div class="floating-logo">📊</div>
     <div class="title-gradient">Excel Sheet Consolidator</div>
     <div class="subtitle">Extract and combine multiple Excel sheets from a ZIP archive into a single workbook</div>
 </div>
 """, unsafe_allow_html=True)
 
-# Main container split into Sidebar Settings and Main Workspace
-with st.sidebar:
-    st.markdown("### ⚙️ Conversion Settings")
-    st.markdown("Customize how the files and sheets are merged together.")
-    
-    # Selection for separate sheets vs single combined sheet
-    merge_mode = st.radio(
-        "Consolidation Mode",
-        options=["📂 Separate Tabs (Preserve Format)", "📊 Combined Tab (Values Only)"],
-        index=0,
-        help="📂 Separate Tabs: Copies sheets cell-by-cell retaining original colors, fonts, margins, formulas, merged cells, heights and widths.\n\n📊 Combined Tab: Stacks rows vertically into a single tab (Values only)."
-    )
-    
-    # Advanced settings (only shown if not in format preservation mode)
-    if merge_mode == "📊 Combined Tab (Values Only)":
-        header_selection = st.selectbox(
-            "Header Row Position",
-            options=["No Header (Read entire sheet raw)", "Row 0 (First row)", "Custom row index"],
-            index=0
-        )
-        
-        header_row = None
-        if header_selection == "Row 0 (First row)":
-            header_row = 0
-        elif header_selection == "Custom row index":
-            header_row = st.number_input("Header row index (0-indexed)", min_value=0, value=0, step=1)
-            
-        clean_empty = st.checkbox(
-            "Remove empty rows & columns",
-            value=True
-        )
-        
-        add_file_col = st.checkbox(
-            "Add Source Filename column",
-            value=True
-        )
-        add_sheet_col = st.checkbox(
-            "Add Source Sheet name column",
-            value=True
-        )
-    else:
-        # Preserved formatting options are automatically fixed
-        header_row = None
-        clean_empty = False
-        add_file_col = False
-        add_sheet_col = False
+# Consolidation Settings (Defaulting directly to Separate Tabs preserving all formatting)
+merge_mode = "📂 Separate Tabs (Preserve Format)"
+header_row = None
+clean_empty = False
+add_file_col = False
+add_sheet_col = False
 
 # Pure Python XML/ZIP Container-level Sheet Consolidation Engine
 def merge_excel_sheets_zip_level(extracted_paths, clean_names):
@@ -658,11 +618,9 @@ def generate_excel_bytes(data_payload, merge_mode="📂 Separate Tabs (Preserve 
 col1, col2 = st.columns([1, 1.2])
 
 uploaded_zip = None
-local_zip_path = "JedoxReport_ins_test_01062026.zip"
-local_zip_exists = os.path.exists(local_zip_path)
 
 with col1:
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    # st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.markdown("### 📂 Upload ZIP File")
     st.markdown("Upload your ZIP archive containing the Excel reports below:")
     
@@ -672,26 +630,8 @@ with col1:
         label_visibility="collapsed"
     )
     
-    # Offer Quick Action for Local Workspace ZIP File
-    if local_zip_exists:
-        st.markdown("<hr style='border-color: rgba(255,255,255,0.08); margin: 20px 0;'>", unsafe_allow_html=True)
-        st.markdown(f"""
-        <div style="background: rgba(167, 139, 250, 0.08); padding: 15px; border-radius: 12px; border: 1px solid rgba(167, 139, 250, 0.2); margin-top: 10px;">
-            <p style="margin-top:0; font-weight:600; color:#c084fc; display:flex; align-items:center; gap: 8px;">
-                ⚡ Workspace ZIP Detected
-            </p>
-            <span style="font-size:0.9rem; color:#cbd5e1;">
-                We found <code>{local_zip_path}</code> in your folder. Press the button below to process it directly.
-            </span>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("<div style='margin-top: 12px;'>", unsafe_allow_html=True)
-        process_local = st.button("🚀 Process Workspace ZIP", use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-    else:
-        process_local = False
-        
+    process_local = False
+    
     st.markdown('</div>', unsafe_allow_html=True)
 
 with col2:
@@ -756,8 +696,23 @@ with col2:
             engine_badge = "<span class='badge' style='background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25);'>⚡ Zero-Loss ZIP Engine</span>"
             st.markdown(f"<div style='margin-bottom: 12px;'><strong>Processing Engine:</strong> {engine_badge}</div>", unsafe_allow_html=True)
             
+            # Create download package
+            with st.spinner("Generating beautiful Excel workbook..."):
+                excel_bytes = generate_excel_bytes(merged_data, merge_mode=merge_mode)
+                
+            # Pulsing Download Button (Moved up!)
+            st.markdown("<div style='margin-top: 10px; margin-bottom: 20px; text-align: center;'>", unsafe_allow_html=True)
+            st.download_button(
+                label="📥 Download Consolidated Excel File",
+                data=excel_bytes,
+                file_name="consolidated_sheets_formatted.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+
             # File breakdown list with animated CSS hover cards
-            with st.expander("📄 View Created Tabs Details", expanded=True):
+            with st.expander("📄 View Created Tabs Details", expanded=False):
                 for idx, detail in enumerate(file_details):
                     st.markdown(f"""
                     <div class="file-card" style="animation-delay: {idx * 0.1}s;">
@@ -769,45 +724,12 @@ with col2:
                     </div>
                     """, unsafe_allow_html=True)
             
-            # Create download package
-            with st.spinner("Generating beautiful Excel workbook..."):
-                excel_bytes = generate_excel_bytes(merged_data, merge_mode=merge_mode)
-                
-            # Pulsing Download Button
-            st.markdown("<div style='margin-top: 20px; text-align: center;'>", unsafe_allow_html=True)
-            st.download_button(
-                label="📥 Download Consolidated Excel File",
-                data=excel_bytes,
-                file_name="consolidated_sheets_formatted.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-            # Store in session state for preview below
+            # Store in session state
             st.session_state['merged_data'] = merged_data
             
     else:
-        st.info("ℹ️ Please upload a ZIP file on the left or select the Workspace ZIP to begin.")
+        st.info("ℹ️ Please upload a ZIP file on the left to begin.")
         
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Detailed Data Preview Section
-if 'merged_data' in st.session_state and active_zip is not None:
-    st.markdown('<div class="glass-card" style="margin-top: 10px;">', unsafe_allow_html=True)
-    st.markdown("### 🔍 Live Data Preview")
-    
-    data_payload = st.session_state['merged_data']
-    
-    if merge_mode == "📊 Combined Tab (Values Only)":
-        st.markdown("Showing preview of the stacked sheet:")
-        st.dataframe(data_payload.head(100).astype(str), use_container_width=True)
-    else:
-        # data_payload is a tuple of (bytes, preview_dict)
-        _, preview_dict = data_payload
-        st.markdown("Select a sheet tab below to preview values:")
-        preview_sheet = st.selectbox("Select Tab to Preview", options=list(preview_dict.keys()))
-        if preview_sheet and preview_sheet in preview_dict:
-            st.dataframe(preview_dict[preview_sheet].head(100).astype(str), use_container_width=True)
-            
-    st.markdown('</div>', unsafe_allow_html=True)
+# Preview section removed as requested
