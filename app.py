@@ -694,7 +694,7 @@ with col2:
             
             # Show which engine was used (for user reassurance)
             engine_badge = "<span class='badge' style='background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25);'>⚡ Zero-Loss ZIP Engine</span>"
-            st.markdown(f"<div style='margin-bottom: 12px;'><strong>Processing Engine:</strong> {engine_badge}</div>", unsafe_allow_html=True)
+            # st.markdown(f"<div style='margin-bottom: 12px;'><strong>Processing Engine:</strong> {engine_badge}</div>", unsafe_allow_html=True)
             
             # Create download package
             with st.spinner("Generating beautiful Excel workbook..."):
