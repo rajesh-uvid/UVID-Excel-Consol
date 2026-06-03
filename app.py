@@ -449,6 +449,60 @@ def _merge_excel_sheets_zip_level_impl(xl_zips, clean_names):
     
     return out_buf.getvalue()
 
+# Helper function to dynamically generate unique and clean sheet names based on file name pattern
+def generate_sheet_names(excel_files):
+    bases = []
+    for f in excel_files:
+        fname = f.split('/')[-1]
+        base = os.path.splitext(fname)[0]
+        bases.append(base)
+        
+    split_names = [base.split('_') for base in bases]
+    max_parts = max(len(s) for s in split_names) if split_names else 0
+    
+    padded_splits = []
+    for s in split_names:
+        padded_splits.append(s + [""] * (max_parts - len(s)))
+        
+    differing_indices = []
+    for i in range(max_parts):
+        words_at_i = [s[i] for s in padded_splits]
+        if len(set(words_at_i)) > 1:
+            differing_indices.append(i)
+            
+    if not differing_indices:
+        chosen_index = max_parts - 1 if max_parts > 0 else 0
+    else:
+        chosen_index = differing_indices[-1]
+        
+    sheet_names = []
+    for idx, s in enumerate(padded_splits):
+        word = s[chosen_index] if chosen_index < len(s) else ""
+        if not word:
+            word = f"Sheet{idx+1}"
+            
+        for char in r"\/?:*[]":
+            word = word.replace(char, "")
+            
+        clean_name = word[:31]
+        sheet_names.append(clean_name)
+        
+    seen = {}
+    final_names = []
+    for name in sheet_names:
+        if not name:
+            name = "Sheet"
+        orig_name = name
+        counter = 1
+        while name in seen or len(name) == 0:
+            suffix = f"_{counter}"
+            name = orig_name[:31 - len(suffix)] + suffix
+            counter += 1
+        seen[name] = True
+        final_names.append(name)
+        
+    return final_names
+
 # Logic to parse the ZIP file and merge Excel sheets
 def merge_excel_sheets(zip_data_or_path, merge_mode="📂 Separate Tabs (Preserve Format)", header_row=None, clean_empty=True, add_file_col=False, add_sheet_col=False):
     processed_details = []
@@ -481,25 +535,16 @@ def merge_excel_sheets(zip_data_or_path, merge_mode="📂 Separate Tabs (Preserv
                 
             # Sort files alphabetically to ensure sheet 100 comes before 200, 300, and US
             excel_files.sort()
+            
+            # Generate clean sheet names using the new index-based pattern matching
+            clean_names = generate_sheet_names(excel_files)
                 
             if merge_mode == "📂 Separate Tabs (Preserve Format)":
                 extracted_paths = []
-                clean_names = []
                 
                 for file_path in excel_files:
                     out_path = z.extract(file_path, temp_dir)
                     extracted_paths.append(out_path)
-                    
-                    # Generate clean sheet tab name
-                    file_name = file_path.split('/')[-1]
-                    base = os.path.splitext(file_name)[0]
-                    base = base.replace("Balance Sheet Comparison Report_", "")
-                    
-                    # Strip Excel forbidden characters: \ / ? * : [ ]
-                    for char in r"\/?:*[]":
-                        base = base.replace(char, "")
-                    clean_name = base[:31]
-                    clean_names.append(clean_name)
                     
                 # Perform pure Python XML/ZIP Container-level Sheet Consolidation
                 consolidated_bytes = merge_excel_sheets_zip_level(extracted_paths, clean_names)
@@ -537,7 +582,7 @@ def merge_excel_sheets(zip_data_or_path, merge_mode="📂 Separate Tabs (Preserv
             else:
                 # Combined Tab Mode (Values only, using Pandas)
                 sheets_dict = {}
-                for file_path in excel_files:
+                for file_idx, file_path in enumerate(excel_files):
                     file_name = file_path.split('/')[-1]
                     try:
                         with z.open(file_path) as f:
@@ -552,9 +597,7 @@ def merge_excel_sheets(zip_data_or_path, merge_mode="📂 Separate Tabs (Preserv
                                 df = df.reset_index(drop=True)
                                 
                                 if not df.empty:
-                                    base = os.path.splitext(file_name)[0]
-                                    base = base.replace("Balance Sheet Comparison Report_", "")
-                                    name = base[:31]
+                                    name = clean_names[file_idx]
                                     
                                     if add_sheet_col:
                                         df.insert(0, 'Source Sheet', sheet)
@@ -694,7 +737,7 @@ with col2:
             
             # Show which engine was used (for user reassurance)
             engine_badge = "<span class='badge' style='background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25);'>⚡ Zero-Loss ZIP Engine</span>"
-            # st.markdown(f"<div style='margin-bottom: 12px;'><strong>Processing Engine:</strong> {engine_badge}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='margin-bottom: 12px;'><strong>Processing Engine:</strong> {engine_badge}</div>", unsafe_allow_html=True)
             
             # Create download package
             with st.spinner("Generating beautiful Excel workbook..."):
