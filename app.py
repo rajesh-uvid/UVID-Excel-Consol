@@ -503,6 +503,41 @@ def generate_sheet_names(excel_files):
         
     return final_names
 
+# Helper function to dynamically generate output Excel file name using all unchanged index words
+def generate_output_filename(excel_files):
+    if not excel_files:
+        return "consolidated_sheets_formatted.xlsx"
+        
+    bases = []
+    for f in excel_files:
+        fname = f.split('/')[-1]
+        base = os.path.splitext(fname)[0]
+        bases.append(base)
+        
+    split_names = [base.split('_') for base in bases]
+    max_parts = max(len(s) for s in split_names) if split_names else 0
+    
+    padded_splits = []
+    for s in split_names:
+        padded_splits.append(s + [""] * (max_parts - len(s)))
+        
+    unchanged_words = []
+    for i in range(max_parts):
+        words_at_i = [s[i] for s in padded_splits]
+        # Check if all elements are the same AND not empty (empty padding doesn't count as word)
+        if len(set(words_at_i)) == 1 and words_at_i[0] != "":
+            unchanged_words.append(words_at_i[0])
+            
+    # Join with "_"
+    if unchanged_words:
+        # Strip forbidden characters just in case
+        filename = "_".join(unchanged_words)
+        for char in r'\/?:*[]"<>|':
+            filename = filename.replace(char, "")
+        return f"{filename}.xlsx"
+    else:
+        return "consolidated_sheets_formatted.xlsx"
+
 # Logic to parse the ZIP file and merge Excel sheets
 def merge_excel_sheets(zip_data_or_path, merge_mode="📂 Separate Tabs (Preserve Format)", header_row=None, clean_empty=True, add_file_col=False, add_sheet_col=False):
     processed_details = []
@@ -531,13 +566,16 @@ def merge_excel_sheets(zip_data_or_path, merge_mode="📂 Separate Tabs (Preserv
             ]
             
             if not excel_files:
-                return None, [], "No valid Excel files (.xlsx or .xls) found in the ZIP archive."
+                return None, [], None, "No valid Excel files (.xlsx or .xls) found in the ZIP archive."
                 
             # Sort files alphabetically to ensure sheet 100 comes before 200, 300, and US
             excel_files.sort()
             
             # Generate clean sheet names using the new index-based pattern matching
             clean_names = generate_sheet_names(excel_files)
+            
+            # Generate output filename from all unchanged index words
+            out_filename = generate_output_filename(excel_files)
                 
             if merge_mode == "📂 Separate Tabs (Preserve Format)":
                 extracted_paths = []
@@ -577,7 +615,7 @@ def merge_excel_sheets(zip_data_or_path, merge_mode="📂 Separate Tabs (Preserv
                             except Exception:
                                 pass
                 
-                return (consolidated_bytes, preview_dict), processed_details, None
+                return (consolidated_bytes, preview_dict), processed_details, out_filename, None
                 
             else:
                 # Combined Tab Mode (Values only, using Pandas)
@@ -616,13 +654,13 @@ def merge_excel_sheets(zip_data_or_path, merge_mode="📂 Separate Tabs (Preserv
                         st.warning(f"Error reading file '{file_name}': {str(e)}")
                         
                 if not sheets_dict:
-                    return None, [], "No data rows could be extracted."
+                    return None, [], None, "No data rows could be extracted."
                     
                 try:
                     merged_df = pd.concat(list(sheets_dict.values()), ignore_index=True)
-                    return merged_df, processed_details, None
+                    return merged_df, processed_details, out_filename, None
                 except Exception as e:
-                    return None, [], f"Error combining datasets: {str(e)}"
+                    return None, [], None, f"Error combining datasets: {str(e)}"
     finally:
         # Guarantee that zip_file_obj is closed first
         if 'zip_file_obj' in locals() and zip_file_obj is not None:
@@ -695,7 +733,7 @@ with col2:
     if active_zip is not None:
         # Show animated spinner/processing log
         with st.spinner("Analyzing ZIP archive and extracting sheets with formats..."):
-            merged_data, file_details, err = merge_excel_sheets(
+            merged_data, file_details, out_filename, err = merge_excel_sheets(
                 active_zip,
                 merge_mode=merge_mode,
                 header_row=header_row,
@@ -748,7 +786,7 @@ with col2:
             st.download_button(
                 label="📥 Download Consolidated Excel File",
                 data=excel_bytes,
-                file_name="consolidated_sheets_formatted.xlsx",
+                file_name=st.session_state.get('out_filename', out_filename),
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
@@ -769,6 +807,7 @@ with col2:
             
             # Store in session state
             st.session_state['merged_data'] = merged_data
+            st.session_state['out_filename'] = out_filename
             
     else:
         st.info("ℹ️ Please upload a ZIP file on the left to begin.")
